@@ -7,11 +7,10 @@ from email.mime.text import MIMEText
 
 # Load credentials from .env file
 load_dotenv()
-SENDER = os.getenv("OUTLOOK_EMAIL")
-PASSWORD = os.getenv("OUTLOOK_PASSWORD")
-SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.office365.com")
+SENDER = os.getenv("OUTLOOK_EMAIL")   # Your Gmail or Outlook address
+PASSWORD = os.getenv("OUTLOOK_PASSWORD")  # App password
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")  # Use smtp.office365.com for Outlook
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-RECIPIENT = SENDER  # send to yourself for testing
 
 print("📧 Using sender:", SENDER)
 
@@ -24,10 +23,10 @@ print("📅 Today:", today)
 
 # Iterate through tasks
 for row in sheet.iter_rows(min_row=2, values_only=True):
-    task, deadline = row
+    task, deadline, recipient_emails = row
     print("➡️ Checking task:", task, "Deadline:", deadline)
 
-    # Handle Excel date formats safely
+    # Convert deadline to date
     if isinstance(deadline, datetime):
         deadline_date = deadline.date()
     else:
@@ -36,17 +35,33 @@ for row in sheet.iter_rows(min_row=2, values_only=True):
     # If deadline is within 2 days
     if deadline_date - today <= timedelta(days=2):
         print("⚠️ Sending reminder for:", task)
-        msg = MIMEText(f"Reminder: {task} is due on {deadline_date}")
+
+        # Split and clean recipient emails
+        recipients = [email.strip() for email in recipient_emails.split(",")]
+
+        # Message body
+        body = f"""
+        Hello,
+
+        This is a reminder that the task **{task}** is due on {deadline_date}.
+
+        Please make sure to complete and submit it before the deadline.
+
+        Regards,
+        Deadline Bot
+        """
+
+        msg = MIMEText(body, "plain")
         msg["Subject"] = f"Deadline Reminder: {task}"
         msg["From"] = SENDER
-        msg["To"] = RECIPIENT
+        msg["To"] = ", ".join(recipients)
 
         try:
             with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
                 server.starttls()
                 server.login(SENDER, PASSWORD)
-                server.send_message(msg)
-            print("✅ Email sent for:", task)
+                server.sendmail(SENDER, recipients, msg.as_string())
+            print("✅ Email sent to:", recipients)
         except Exception as e:
             print("❌ Error sending email:", e)
 
